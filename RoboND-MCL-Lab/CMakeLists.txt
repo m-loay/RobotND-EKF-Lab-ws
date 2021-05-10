@@ -1,46 +1,65 @@
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
-project(matplotlib_cpp LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+project(Robot)
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_STANDARD 11) 
+# add_executable(Robot solution.cpp robot.cpp)
+#Set Paths
+set(ROBOT_MCL_INCLIDE_DIR ${CMAKE_SOURCE_DIR}/robot_mcl)
+set(PLOT_INCLIDE_DIR ${CMAKE_SOURCE_DIR}/plotter)
+set(TEST_CASES_INCLIDE_DIR ${CMAKE_SOURCE_DIR}/testCases)
 
-set(CMAKE_BUILD_TYPE Debug)
-set (CMAKE_CXX_STANDARD 14) 
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# # Use simulation  testing mode or Unit testing
+# option (USE_UNIT_TESTING "Use Unit testing Mode" ON)
 
-include(GNUInstallDirs)
-set(PACKAGE_NAME matplotlib_cpp)
-set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/${PACKAGE_NAME}/cmake)
+# #set build type to debug and C++ standard to 11
+# set(CMAKE_BUILD_TYPE Release)
+# set(CMAKE_CXX_STANDARD 11) 
 
+# #Add robot_mcl sub-directory
+# add_subdirectory(${ROBOT_MCL_INCLIDE_DIR})
+# list(APPEND EXTRA_LIBS robot_mcl)
+# list(APPEND EXTRA_INCLUDES "${ROBOT_MCL_INCLIDE_DIR}")
 
-# Library target
-add_library(matplotlib_cpp INTERFACE)
-target_include_directories(matplotlib_cpp
-  INTERFACE
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/examples>
-    $<INSTALL_INTERFACE:include>
-)
-target_compile_features(matplotlib_cpp INTERFACE
-  cxx_std_11
-)
-# TODO: Use `Development.Embed` component when requiring cmake >= 3.18
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-target_link_libraries(matplotlib_cpp INTERFACE
-  Python3::Python
-  Python3::Module
-)
-find_package(Python3 COMPONENTS NumPy)
-if(Python3_NumPy_FOUND)
-  target_link_libraries(matplotlib_cpp INTERFACE
-    Python3::NumPy
-  )
-else()
-  target_compile_definitions(matplotlib_cpp INTERFACE WITHOUT_NUMPY)
-endif()
-install(
-  TARGETS matplotlib_cpp
-  EXPORT install_targets
-)
+# #Add Plotter sub-directory
+# add_subdirectory(${PLOT_INCLIDE_DIR})
+# list(APPEND EXTRA_LIBS plotter)
+# list(APPEND EXTRA_INCLUDES "${PLOT_INCLIDE_DIR}")
+
+# #compile the source code and link it with external libraries
+# add_executable(robot main.cpp)
+# target_include_directories(robot PUBLIC ${EXTRA_INCLUDES})
+# target_link_directories(robot PUBLIC ${EXTRA_INCLUDES})
+# target_link_libraries (robot PUBLIC ${EXTRA_LIBS})
 
 
-# Examples
-add_executable(minimal solution.cpp)
-target_link_libraries(minimal PRIVATE matplotlib_cpp)
-set_target_properties(minimal PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+
+message("Use unit testing Mode")
+enable_testing()
+
+#Find Gtest lib and include the directories
+find_package(GTest REQUIRED)
+include_directories(${GTEST_INCLUDE_DIRS})
+
+#Add Testcases sub-directory
+add_subdirectory(${TEST_CASES_INCLIDE_DIR})
+list(APPEND EXTRA_LIBS testCases)
+list(APPEND EXTRA_INCLUDES "${TEST_CASES_INCLIDE_DIR}")
+
+#Add Plotter sub-directory
+add_subdirectory(${PLOT_INCLIDE_DIR})
+list(APPEND EXTRA_LIBS plotter)
+list(APPEND EXTRA_INCLUDES "${PLOT_INCLIDE_DIR}")
+
+#Add robot_mcl sub-directory
+add_subdirectory(${ROBOT_MCL_INCLIDE_DIR})
+list(APPEND EXTRA_LIBS robot_mcl)
+list(APPEND EXTRA_INCLUDES "${ROBOT_MCL_INCLIDE_DIR}")
+
+
+#compile the source code and link it with external libraries
+add_executable(gtest main_test.cpp)
+target_link_libraries (gtest PUBLIC ${GTEST_BOTH_LIBRARIES} ${EXTRA_LIBS})
+target_include_directories(gtest PUBLIC ${CMAKE_BINARY_DIR} ${EXTRA_INCLUDES})
+#add the testing
+add_test(NAME gtest COMMAND gtest)
