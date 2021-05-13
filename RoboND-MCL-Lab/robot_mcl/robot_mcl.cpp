@@ -1,5 +1,6 @@
 #include "robot_mcl.hpp"  
-
+#include <algorithm>
+#include <iterator>
 namespace robot_mcl
 {
     std::random_device rd;
@@ -17,6 +18,30 @@ namespace robot_mcl
         robotNoise_.turn_noise = 0.0; //noise of the turn
         robotNoise_.sense_noise = 0.0; //noise of the sensing
 
+    }
+    
+   /*!
+    * Particles create robot particles.
+    * @param numOfParticles number of particles.
+    * @return void.
+    */
+    void RobotMcl::Particles(int numOfParticles)
+    {
+        robotParticles_.clear();
+        robotParticles_.empty();
+        for (int i = 0; i < numOfParticles; i++)
+        {
+            Particle particle;
+            particle.id = i;
+            particle.xPos = gen_real_random() * worldSize_;// robot's x coordinate
+            particle.yPos = gen_real_random() * worldSize_;// robot's y coordinate
+            particle.orientRad =gen_real_random() * 2.0f * M_PI;// robot's orientation
+
+            particleNoise_.forward_noise = 0.0; //noise of the forward movement
+            particleNoise_.turn_noise = 0.0; //noise of the turn
+            particleNoise_.sense_noise = 0.0; //noise of the sensing
+            robotParticles_.push_back(particle);
+        }
     }
 
     /*!
@@ -54,11 +79,31 @@ namespace robot_mcl
     }
 
     /*!
-    * sense  Measure the distances from the robot toward the landmarks.
+    * set_particle_noise set particle Noise.
+    * @param new_forward_noise Robot new forward move noise.
+    * @param new_turn_noise Robot new turn move noise.
+    * @param new_sense_noise Robot senosr.
+    * @return void.
+    */
+    void RobotMcl::set_particle_noise(double new_forward_noise, double new_turn_noise, double new_sense_noise)
+    {
+        // Simulate noise, often useful in particle filters
+        particleNoise_.forward_noise = new_forward_noise;
+        particleNoise_.turn_noise = new_turn_noise;
+        particleNoise_.sense_noise = new_sense_noise;
+    }
+
+    /*!
+    * sense_robot_landMark  Measure the distances from the robot toward the landmarks.
     * @return std::vector<double> sensor measurements.
     */
-    std::vector<double> RobotMcl::sense(void)
+    std::vector<double> RobotMcl::sense_robot_landMark(void)
     {
+        //initialize
+        const double x(robotPose_.xPos);
+        const double y(robotPose_.yPos);
+        const double sensorNoise(robotNoise_.sense_noise);
+
         // Measure the distances from the robot toward the landmarks
         const int size(landMark_.size());
         std::vector<double> z(size);
@@ -66,8 +111,34 @@ namespace robot_mcl
 
         for (int i = 0; i < size; i++) 
         {
-            dist = sqrt(pow((robotPose_.xPos - landMark_[i][0]), 2.0f) + pow((robotPose_.yPos - landMark_[i][1]), 2.0f));
-            dist += gen_gauss_random(0.0, robotNoise_.sense_noise);
+            dist = sqrt(pow((x - landMark_[i][0]), 2.0f) + pow((y - landMark_[i][1]), 2.0f));
+            dist += gen_gauss_random(0.0, sensorNoise);
+            z[i] = dist;
+        }
+        return z;
+    }
+
+    /*!
+    * sense_particles_landMark  Measure the distances from the robot toward the landmarks.
+    * @param index particle index.
+    * @return std::vector<double> sensor measurements.
+    */
+    std::vector<double> RobotMcl::sense_particles_landMark(const struct Particle &p)
+    {
+        //initialize
+        double x(p.xPos);
+        double y(p.yPos);
+        const double sensorNoise(particleNoise_.sense_noise);
+
+        // Measure the distances from the robot toward the landmarks
+        const int size(landMark_.size());
+        std::vector<double> z(size);
+        double dist;
+
+        for (int i = 0; i < size; i++) 
+        {
+            dist = sqrt(pow((x - landMark_[i][0]), 2.0f) + pow((y - landMark_[i][1]), 2.0f));
+            dist += gen_gauss_random(0.0, sensorNoise);
             z[i] = dist;
         }
         return z;
@@ -79,12 +150,14 @@ namespace robot_mcl
     */
     std::string RobotMcl::read_sensors(void)
     {
-            // Returns all the distances from the robot toward the landmarks
-        distancesToLandMarks_ = sense();
+
+        // Returns all the distances from the robot toward the landmarks
+        const std::vector<double>distancesToLandMarks (sense_robot_landMark());
+
         std::string readings = "[";
-        for (int i = 0; i < distancesToLandMarks_.size(); i++) 
+        for (int i = 0; i < distancesToLandMarks.size(); i++) 
         {
-            readings += std::to_string(distancesToLandMarks_[i]) + " ";
+            readings += std::to_string(distancesToLandMarks[i]) + " ";
         }
         readings[readings.size() - 1] = ']';
 
@@ -93,20 +166,25 @@ namespace robot_mcl
 
     /*!
     * measurement_prob Calculates how likely a measurement should be.
-    * @param measurement measurements collected from sensor std::vector<double>.
     * @return double.
     */
-    double RobotMcl::measurement_prob()
+    double RobotMcl::measurement_prob_robot()
     {
-        // Calculates how likely a measurement should be
+        //initialize
+        const double x(robotPose_.xPos);
+        const double y(robotPose_.yPos);
+        const double sensorNoise(robotNoise_.sense_noise);
         double prob = 1.0;
         double dist;
         const int size(landMark_.size());
 
+        // Calculates how likely a measurement should be
+        const std::vector<double>distancesToLandMarks (sense_robot_landMark()); 
+
         for (int i = 0; i < size ; i++) 
         {
-            dist = sqrt(pow((robotPose_.xPos - landMark_[i][0]), 2.0f) + pow((robotPose_.yPos - landMark_[i][1]), 2.0f));
-            prob *= gaussian(dist, robotNoise_.sense_noise, distancesToLandMarks_[i]);
+            dist = sqrt(pow((x - landMark_[i][0]), 2.0f) + pow((y - landMark_[i][1]), 2.0f));
+            prob *= gaussian(dist, sensorNoise, distancesToLandMarks[i]);
         }
 
         return prob;    
@@ -114,35 +192,117 @@ namespace robot_mcl
 
 
     /*!
-    * move It moves Robot and Particles.
+    * measurement_prob_particle Calculates how likely a measurement should be.
+    * @param index particle index.
+    * @return double.
+    */
+    void RobotMcl::measurement_prob_particle()
+    {
+        for(auto & p:robotParticles_)
+        {
+            //initialize
+            const double x(p.xPos);
+            const double y(p.yPos);
+            const double sensorNoise(particleNoise_.sense_noise);
+            double prob = 1.0;
+            double dist;
+            const int size(landMark_.size());
+
+            // Calculates how likely a measurement should be
+            const std::vector<double>distancesToLandMarks (sense_robot_landMark()); 
+
+            for (int i = 0; i < size ; i++) 
+            {
+                dist = sqrt(pow((x - landMark_[i][0]), 2.0f) + pow((y - landMark_[i][1]), 2.0f));
+                prob *= gaussian(dist, sensorNoise, distancesToLandMarks[i]);
+            }
+            p.weight = prob;
+            weights_.push_back(prob);
+
+        }
+    }
+
+
+    /*!
+    * move_robot It moves Robot and Particles.
     * @param turn Angle of the new orientation(clockwise --> -ve, +ve anti clockwise).
     * @param forward distance to be moved.
     * @return RobotMcl object.
     */
-    RobotMcl RobotMcl::move(double turn, double forward)
+    void RobotMcl::move_robot(double turn, double forward)
     {
         if (forward < 0)
             throw std::invalid_argument("Robot cannot move backward");
 
+        //initialize
+        double x(robotPose_.xPos);
+        double y(robotPose_.yPos);
+        double orient(robotPose_.orientRad);
+        const double sense_noise(robotNoise_.sense_noise);
+        const double turn_noise(robotNoise_.turn_noise);
+        const double forward_noise(robotNoise_.forward_noise);
+
         // turn, and add randomness to the turning command
-        robotPose_.orientRad = robotPose_.orientRad + turn + gen_gauss_random(0.0, robotNoise_.turn_noise);
-        robotPose_.orientRad = mod(robotPose_.orientRad, 2 * M_PI);
+        orient = orient + turn + gen_gauss_random(0.0, turn_noise);
+        orient = mod(orient, 2 * M_PI);
 
         // move, and add randomness to the motion command
-        double dist = forward + gen_gauss_random(0.0,  robotNoise_.forward_noise);
-        robotPose_.xPos = robotPose_.xPos + (cos(robotPose_.orientRad) * dist);
-        robotPose_.yPos = robotPose_.yPos + (sin(robotPose_.orientRad) * dist);
+        double dist = forward + gen_gauss_random(0.0, forward_noise);
+        x = x + (cos(orient) * dist);
+        y = y + (sin(orient) * dist);
 
         // cyclic truncate
-        robotPose_.xPos = mod(robotPose_.xPos, worldSize_);
-        robotPose_.yPos = mod(robotPose_.yPos, worldSize_);
+        x = mod(x, worldSize_);
+        y = mod(y, worldSize_);
 
         // set particle
-        RobotMcl res;
-        res.set_robot_pose(robotPose_.xPos, robotPose_.yPos, robotPose_.orientRad);
-        res.set_robot_noise(robotNoise_.forward_noise, robotNoise_.turn_noise, robotNoise_.sense_noise);
+        robotPose_.xPos = x;
+        robotPose_.yPos = y;
+        robotPose_.orientRad = orient;
+    }
 
-        return res;
+    /*!
+    * move_particle It moves Robot and Particles.
+    * @param turn Angle of the new orientation(clockwise --> -ve, +ve anti clockwise).
+    * @param forward distance to be moved.
+    * @return RobotMcl object.
+    */
+    void RobotMcl::move_particle(double turn, double forward)
+    {
+        if (forward < 0)
+            throw std::invalid_argument("Robot cannot move backward");
+
+
+        Particles(robotParticles_.size());
+
+        for(auto &p:robotParticles_)
+        {
+            //initialize
+            double x(p.xPos);
+            double y(p.yPos);
+            double orient(p.orientRad);
+            const double sense_noise(particleNoise_.sense_noise);
+            const double turn_noise(particleNoise_.turn_noise);
+            const double forward_noise(particleNoise_.forward_noise);
+
+            // turn, and add randomness to the turning command
+            orient = orient + turn + gen_gauss_random(0.0, turn_noise);
+            orient = mod(orient, 2 * M_PI);
+
+            // move, and add randomness to the motion command
+            double dist = forward + gen_gauss_random(0.0, forward_noise);
+            x = x + (cos(orient) * dist);
+            y = y + (sin(orient) * dist);
+
+            // cyclic truncate
+            x = mod(x, worldSize_);
+            y = mod(y, worldSize_);
+
+            // set particle
+            p.xPos = x;
+            p.yPos = y;
+            p.orientRad = orient;
+        }
     }
 
     /*!
@@ -156,6 +316,47 @@ namespace robot_mcl
         // Returns the robot current position and orientation in a string format
         return "[x=" + std::to_string(robotPose_.xPos) + " y=" + std::to_string(robotPose_.yPos) +
                     " orient=" + std::to_string(robotPose_.orientRad) + "]";           
+    }
+
+    /*!
+    * show_pose Returns the robot current position and orientation in a string format.
+    * @param turn Angle of the new orientation(clockwise --> -ve, +ve anti clockwise).
+    * @param forward distance to be moved.
+    * @return RobotMcl object.
+    */
+    std::string RobotMcl::show_pose(const struct Particle &p)
+    {
+        
+        // Returns the robot current position and orientation in a string format
+        return "[id="+std::to_string(p.id) + " x=" + std::to_string(p.xPos) + " y=" + std::to_string(p.yPos) +
+                    " orient=" + std::to_string(p.orientRad) + "]";           
+    }
+    /*!
+    * resampling_wheel Returns the robot particles weights.
+    * @param weights weights of the particles.
+    * @return RobotMcl object.
+    */
+    void RobotMcl::resampling_wheel(void)
+    { 
+        const int size(static_cast<int>(robotParticles_.size()));
+        Particles(size);
+        int index (gen_real_random()*size);
+        double beta(0.0f);
+        double mw(*std::max_element(weights_.begin(), weights_.end()));
+        std::vector<Particle> weighted_sample(size);
+
+        for (int i = 0; i < size; i++) 
+	    {
+            const double weight(robotParticles_[index].weight);
+            beta += gen_real_random() * 2.0 * mw;
+            while (beta > weight); 
+            {
+                beta -=weight;
+                index = mod((index + 1), size);
+            }
+            weighted_sample[i] = robotParticles_[index];
+        }
+        robotParticles_ = weighted_sample;
     }
 
     /*!
@@ -202,10 +403,39 @@ namespace robot_mcl
     * @param second_term second position.
     * @return void.
     */
-    //double RobotMCL::mod(double first_term, double second_term)
     double RobotMcl::mod(double first_term, double second_term)
     {
         // Compute the modulus
         return first_term - (second_term)*floor(first_term / (second_term));
     }
+
+    /*!
+    * mod max_weight find the maximum weights in particles.
+    * @param particles std::vector<Particle> which contains all vectors.
+    * @return max the maximum weight.
+    */
+    double RobotMcl::max_weight(std::vector<Particle> &particles)
+    {
+        //initialize
+        const int size(particles.size());
+
+        // Identify the max element in an array
+        double max = 0;
+
+        for (int i = 0; i < i; i++) 
+        {
+            if (particles[i].weight > max)
+            {
+                max = particles[i].weight;
+            }
+        }
+        return max;
+    }
+#ifdef DEBUG_ROBOT_MCL
+        std::vector<Particle> RobotMcl::debug_get_particles(void)
+        {
+            return robotParticles_;
+        }
+#endif
+
 }

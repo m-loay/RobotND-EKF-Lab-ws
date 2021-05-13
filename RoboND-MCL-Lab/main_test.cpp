@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 #include"testCases.hpp"
 
-TEST(Robot,RobotClassTest)
-{
-    EXPECT_EQ(RobotClassTest(),true);
-}
+// TEST(Robot,RobotClassTest)
+// {
+//     EXPECT_EQ(RobotClassTest(),true);
+// }
 
 // TEST(Robot,RobotClassTest2)
 // {
@@ -20,6 +20,22 @@ TEST(Robot,RobotClassTest)
 // {
 //     EXPECT_EQ(particles(),true);
 // }
+
+// TEST(ParticlesFilter,updateParticlesWeights)
+// {
+//     EXPECT_EQ(updateParticlesWeights(),true);
+// }
+
+// TEST(ParticlesFilter,resample_particles)
+// {
+//     EXPECT_EQ(resample_particles(),true);
+// }
+
+TEST(ParticlesFilter,fullParticleFilter)
+{
+    EXPECT_EQ(fullParticleFilter(),true);
+}
+
 
 int main(int argc, char **argv)
 {

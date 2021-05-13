@@ -2,6 +2,15 @@
 #define ROBOT_MCL_H
 #pragma once
 
+
+#define DEBUG_ROBOT_MCL
+
+#ifdef DEBUG_ROBOT_MCL
+#define private public
+#include<algorithm> // for copy() and assign()
+#include<iterator> // for back_inserter
+#endif
+
 #define _USE_MATH_DEFINES
 #include <iostream>
 #include <string>
@@ -17,11 +26,27 @@
 namespace robot_mcl
 {
 
+    struct Particle
+    {
+        int id;
+        double xPos;
+        double yPos;
+        double orientRad;
+        double weight;
+    };
+
     struct RobotPose
     {
         double xPos;
         double yPos;
         double orientRad;
+    };
+
+    struct ParticleNoise
+    {
+        double forward_noise;
+        double turn_noise;
+        double sense_noise;
     };
 
     struct RobotNoise
@@ -35,17 +60,21 @@ namespace robot_mcl
     {
         private:
         /*data*/
-        //! landmark.
-        std::vector<std::vector<double>> landMark_;
 
         //distance to landmarks 
-        std::vector<double>distancesToLandMarks_;
+        std::vector<double>weights_;
 
         // robot pose
         struct RobotPose robotPose_;
 
         // robot noise
         struct RobotNoise robotNoise_;
+
+        //distance to landmarks 
+        std::vector<Particle>robotParticles_;
+
+        // particle noise
+        struct ParticleNoise particleNoise_;
 
         /*!
         * gen_gauss_random generate random numbers based on normal disribution.
@@ -70,17 +99,20 @@ namespace robot_mcl
         */
         double gen_real_random(void);
 
-        /*!
-        * mod Calculate the modulus for cyclic truncate.
-        * @param first_term first position.
-        * @param second_term second position.
-        * @return void.
+       /*!
+        * mod max_weight find the maximum weights in particles.
+        * @param particles std::vector<Particle> which contains all vectors.
+        * @return max the maximum weight.
         */
-        double mod(double first_term, double second_term);
+        double max_weight(std::vector<Particle> &particles);
+
 
         public:
         //! world size.
         static double worldSize_;
+
+        //! landmark.
+        static std::vector<std::vector<double>> landMark_;
         /*!
         * Constructor.
         */
@@ -90,6 +122,13 @@ namespace robot_mcl
         * Destructor.
         */
         ~RobotMcl() = default;
+
+        /*!
+        * createParticles create robot particles.
+        * @param numOfParticles number of particles.
+        * @return void.
+        */
+        void Particles(int numOfParticles);
 
         /*!
         * set_robot_pose set Robot Position.
@@ -109,11 +148,27 @@ namespace robot_mcl
         */
         void set_robot_noise(double new_forward_noise, double new_turn_noise, double new_sense_noise);
 
+
         /*!
-        * sense  Measure the distances from the robot toward the landmarks.
+        * set_particle_noise set particle Noise.
+        * @param new_forward_noise Robot new forward move noise.
+        * @param new_turn_noise Robot new turn move noise.
+        * @param new_sense_noise Robot senosr.
+        * @return void.
+        */
+        void set_particle_noise(double new_forward_noise, double new_turn_noise, double new_sense_noise);
+
+        /*!
+        * sense_robot_landMark  Measure the distances from the robot toward the landmarks.
         * @return std::vector<double> snenor measurements.
         */
-        std::vector<double> sense(void);
+        std::vector<double> sense_robot_landMark(void);
+
+        /*!
+        * sense_particles_landMark  Measure the distances from the robot toward the landmarks.
+        * @return std::vector<double> sensor measurements.
+        */
+        std::vector<double> sense_particles_landMark(const struct Particle &p);
 
         /*!
         * read_sensors Returns all the distances from the robot toward the landmarks.
@@ -123,19 +178,38 @@ namespace robot_mcl
 
         /*!
         * measurement_prob Calculates how likely a measurement should be.
-        * @param measurement measurements collected from sensor std::vector<double>.
         * @return void.
         */
-        double measurement_prob();
+        double measurement_prob_robot();
+
+        /*!
+        * measurement_prob Calculates how likely a measurement should be.
+        * @return void.
+        */
+        void measurement_prob_particle();
 
 
         /*!
-        * move It moves Robot and Particles.
+        * move_robot It moves Robot and Particles.
         * @param turn Angle of the new orientation(clockwise --> -ve, +ve anti clockwise).
         * @param forward distance to be moved.
         * @return RobotMcl object.
         */
-        RobotMcl move(double turn, double forward);
+        void move_robot(double turn, double forward);
+
+        /*!
+        * move_particle It moves Robot and Particles.
+        * @param turn Angle of the new orientation(clockwise --> -ve, +ve anti clockwise).
+        * @param forward distance to be moved.
+        * @return RobotMcl object.
+        */
+        void move_particle(double turn, double forward);
+
+        /*!
+        * show_pose Returns the robot current position and orientation in a string format.
+        * @return RobotMcl object.
+        */
+        std::string show_pose(void);
 
         /*!
         * show_pose Returns the robot current position and orientation in a string format.
@@ -143,7 +217,26 @@ namespace robot_mcl
         * @param forward distance to be moved.
         * @return RobotMcl object.
         */
-        std::string show_pose(void);
+        std::string show_pose(const struct Particle &p);
+
+        /*!
+        * resampling_wheel resample the weights of particles.
+        * @return RobotMcl object.
+        */
+        void resampling_wheel();
+
+        /*!
+        * mod Calculate the modulus for cyclic truncate.
+        * @param first_term first position.
+        * @param second_term second position.
+        * @return void.
+        */
+        double mod(double first_term, double second_term);
+
+#ifdef DEBUG_ROBOT_MCL
+        std::vector<Particle> debug_get_particles(void);
+#endif
+
     };
 }
 #endif

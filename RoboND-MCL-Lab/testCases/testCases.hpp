@@ -6,5 +6,8 @@ bool RobotClassTest(void);
 bool RobotClassTest2(void);
 bool AddNoiseToMotion(void);
 bool particles(void);
+bool updateParticlesWeights(void);
+bool resample_particles(void);
+bool fullParticleFilter(void);
 
 #endif /* TEST_CASES_H_ */
